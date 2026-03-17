@@ -1,0 +1,37 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": false,
+    "outDir": "./dist",
+    "rootDir": ".",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "allowJs": true,
+    "checkJs": false,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "forceConsistentCasingInFileNames": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    "baseUrl": ".",
+    "paths": {
+      "openclaw/plugin-sdk": ["../../plugin_dev_backup/openclaw-channel-agentscope-orchestrator_FULL_20260313_024649/node_modules/openclaw/dist/plugin-sdk/index.d.ts"],
+      "openclaw/plugin-sdk/twitch": ["../../plugin_dev_backup/openclaw-channel-agentscope-orchestrator_FULL_20260313_024649/node_modules/openclaw/dist/plugin-sdk/plugin-sdk/twitch.d.ts"]
+    }
+  },
+  "include": [
+    "index.ts",
+    "src/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "tests"
+  ]
+}

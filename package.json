@@ -1,0 +1,31 @@
+{
+  "name": "@openclaw/ao",
+  "version": "0.3.0",
+  "private": true,
+  "description": "OpenClaw AO channel plugin V2 - Enhanced with circuit breaker, connection pool, and message queue",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "@types/ws": "^8.5.13",
+    "@types/node": "^20.0.0",
+    "vitest": "^2.0.0"
+  },
+  "peerDependencies": {
+    "openclaw-plugin-sdk": "file:../../plugin_dev_backup/openclaw-channel-agentscope-orchestrator_FULL_20260313_024649/node_modules/openclaw"
+  },
+  "openclaw": {
+    "extensions": [
+      "./dist/index.js"
+    ]
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(curl -s http://localhost:3000)",
+      "Bash(curl -s http://localhost:8000/api/v1/instances)",
+      "Bash(npm list:*)",
+      "Bash(curl -s http://localhost:3000/src/main.tsx)",
+      "Bash(curl -s http://localhost:3000/health)",
+      "Bash(pkill -f \"vite\")",
+      "Read(//tmp/**)",
+      "Bash(netstat -ano)",
+      "Bash(taskkill //F //IM node.exe)",
+      "Bash(npx tsc:*)",
+      "Read(//c/Users/Administrator/.openclaw/workspace/**)",
+      "Bash(find ../../plugins/AO/tests -type f -name *.ts)",
+      "Bash(npm run:*)"
+    ]
+  }
+}

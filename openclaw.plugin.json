@@ -1,0 +1,231 @@
+{
+  "id": "ao",
+  "name": "AO Channel",
+  "description": "OpenClaw channel bridge for 小龙虾合体 (V2 Server Mode)",
+  "version": "2.0.0",
+  "channels": ["ao"],
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "enabled": {
+        "type": "boolean",
+        "description": "启用 AO 插件",
+        "default": true
+      },
+      "connectionMode": {
+        "type": "string",
+        "enum": ["server", "client"],
+        "description": "连接模式: server - 作为 WebSocket 服务器等待 Control Plane 连接; client - 主动连接到 Control Plane",
+        "default": "server"
+      },
+      "listenHost": {
+        "type": "string",
+        "description": "V2 服务器模式: 监听主机地址",
+        "default": "0.0.0.0"
+      },
+      "listenPort": {
+        "type": "integer",
+        "description": "V2 服务器模式: 监听端口",
+        "default": 18080,
+        "minimum": 1,
+        "maximum": 65535
+      },
+      "apiKey": {
+        "type": "string",
+        "description": "V2 服务器模式: API 密钥，用于 Control Plane 连接认证",
+        "minLength": 16
+      },
+      "maxConnections": {
+        "type": "integer",
+        "description": "最大允许的 WebSocket 连接数",
+        "default": 10,
+        "minimum": 1,
+        "maximum": 1000
+      },
+      "controlPlaneUrl": {
+        "type": "string",
+        "format": "uri",
+        "description": "V2 客户端模式: Control Plane WebSocket URL (如: wss://control-plane.example.com/ws)"
+      },
+      "healthCheck": {
+        "type": "object",
+        "description": "健康检查配置",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "default": true
+          },
+          "intervalMs": {
+            "type": "integer",
+            "description": "健康检查间隔(毫秒)",
+            "default": 30000,
+            "minimum": 5000
+          },
+          "timeoutMs": {
+            "type": "integer",
+            "description": "健康检查超时(毫秒)",
+            "default": 10000,
+            "minimum": 1000
+          }
+        }
+      },
+      "circuitBreaker": {
+        "type": "object",
+        "description": "断路器配置",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "default": true
+          },
+          "failureThreshold": {
+            "type": "integer",
+            "description": "触发断路的失败次数阈值",
+            "default": 5,
+            "minimum": 1
+          },
+          "recoveryTimeoutMs": {
+            "type": "integer",
+            "description": "断路器打开后恢复超时(毫秒)",
+            "default": 30000,
+            "minimum": 5000
+          },
+          "halfOpenMaxCalls": {
+            "type": "integer",
+            "description": "半开状态最大测试调用数",
+            "default": 3,
+            "minimum": 1
+          }
+        }
+      },
+      "messageQueue": {
+        "type": "object",
+        "description": "消息队列配置",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "default": true
+          },
+          "maxSize": {
+            "type": "integer",
+            "description": "队列最大消息数",
+            "default": 1000,
+            "minimum": 100
+          },
+          "persistPath": {
+            "type": "string",
+            "description": "持久化存储路径(留空则不持久化)",
+            "default": "./data/ao-queue"
+          }
+        }
+      },
+      "metrics": {
+        "type": "object",
+        "description": "指标监控配置",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "default": true
+          },
+          "port": {
+            "type": "integer",
+            "description": "Prometheus 指标端口",
+            "default": 9090,
+            "minimum": 1024,
+            "maximum": 65535
+          },
+          "path": {
+            "type": "string",
+            "description": "指标 HTTP 路径",
+            "default": "/metrics"
+          }
+        }
+      },
+      "mtls": {
+        "type": "object",
+        "description": "mTLS 安全配置",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "default": false
+          },
+          "certPath": {
+            "type": "string",
+            "description": "证书文件路径"
+          },
+          "keyPath": {
+            "type": "string",
+            "description": "私钥文件路径"
+          },
+          "caPath": {
+            "type": "string",
+            "description": "CA 证书路径"
+          },
+          "autoRotate": {
+            "type": "boolean",
+            "description": "自动证书轮换",
+            "default": true
+          }
+        }
+      },
+      "bridgeBaseUrl": {
+        "type": "string",
+        "format": "uri",
+        "description": "[Legacy] 旧版桥接服务器 URL (向后兼容)"
+      },
+      "apiKeyId": {
+        "type": "string",
+        "description": "[Legacy] 旧版 API Key ID"
+      },
+      "apiSecret": {
+        "type": "string",
+        "description": "[Legacy] 旧版 API Secret"
+      },
+      "accounts": {
+        "type": "object",
+        "description": "[Legacy] 多账户配置(旧版)",
+        "additionalProperties": {
+          "type": "object",
+          "properties": {
+            "apiKeyId": { "type": "string" },
+            "apiSecret": { "type": "string" },
+            "bridgeBaseUrl": { "type": "string" }
+          }
+        }
+      }
+    }
+  },
+  "configDefaults": {
+    "enabled": true,
+    "connectionMode": "server",
+    "listenHost": "0.0.0.0",
+    "listenPort": 18080,
+    "maxConnections": 10,
+    "healthCheck": {
+      "enabled": true,
+      "intervalMs": 30000,
+      "timeoutMs": 10000
+    },
+    "circuitBreaker": {
+      "enabled": true,
+      "failureThreshold": 5,
+      "recoveryTimeoutMs": 30000,
+      "halfOpenMaxCalls": 3
+    },
+    "messageQueue": {
+      "enabled": true,
+      "maxSize": 1000,
+      "persistPath": "./data/ao-queue"
+    },
+    "metrics": {
+      "enabled": true,
+      "port": 9090,
+      "path": "/metrics"
+    },
+    "mtls": {
+      "enabled": false,
+      "autoRotate": true
+    }
+  },
+  "required": ["enabled"]
+}
