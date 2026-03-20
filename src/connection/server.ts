@@ -140,6 +140,13 @@ export function createWebSocketServer(
       state.logger?.info?.(`[AO Server]   id: ${message.id}`);
       state.logger?.info?.(`[AO Server]   isAuthenticated: ${conn.isAuthenticated}`);
 
+      // Special handling for disconnect message - clean up old connections
+      // This is used by Control Plane to release connection slots before reconnecting
+      if (message.type === "disconnect") {
+        handleDisconnect(conn, message);
+        return;
+      }
+
       // Special handling for auth message
       if (message.type === "auth" && !conn.isAuthenticated) {
         state.logger?.info?.(`[AO Server]   -> Handling auth message`);
@@ -238,6 +245,69 @@ export function createWebSocketServer(
     if (conn.ws.readyState === WebSocket.OPEN) {
       conn.ws.send(JSON.stringify(response));
     }
+  }
+
+  function handleDisconnect(
+    conn: ControlPlaneConnection,
+    message: { id?: string; payload?: { reason?: string; controlPlaneId?: string } }
+  ): void {
+    const reason = message.payload?.reason || "unknown";
+    const controlPlaneId = message.payload?.controlPlaneId || "unknown";
+
+    state.logger?.info?.(`[AO Server] Disconnect request received from ${conn.id}`);
+    state.logger?.info?.(`[AO Server]   reason: ${reason}`);
+    state.logger?.info?.(`[AO Server]   controlPlaneId: ${controlPlaneId}`);
+
+    // 如果是 new_connection_request，关闭所有来自同一 controlPlaneId 的旧连接
+    if (reason === "new_connection_request" && controlPlaneId !== "unknown") {
+      state.logger?.info?.(`[AO Server] Cleaning up old connections for controlPlaneId: ${controlPlaneId}`);
+      let cleanedCount = 0;
+
+      for (const [oldConnId, oldConn] of state.connections) {
+        // 跳过当前连接（临时连接）
+        if (oldConnId === conn.id) continue;
+
+        // 检查是否来自同一 controlPlaneId
+        if (oldConn.metadata.controlPlaneId === controlPlaneId) {
+          state.logger?.info?.(`[AO Server]   Closing old connection: ${oldConnId}`);
+          try {
+            if (oldConn.ws.readyState === WebSocket.OPEN) {
+              oldConn.ws.close(1000, "Replaced by new connection");
+            }
+          } catch (e) {
+            // Ignore
+          }
+          removeConnection(oldConnId);
+          cleanedCount++;
+        }
+      }
+
+      state.logger?.info?.(`[AO Server] Cleaned up ${cleanedCount} old connections for ${controlPlaneId}`);
+    }
+
+    // Send acknowledgment
+    const response = {
+      type: "disconnect_ack",
+      inReplyTo: message.id || "",
+      timestamp: Date.now(),
+      payload: { success: true },
+    };
+
+    if (conn.ws.readyState === WebSocket.OPEN) {
+      conn.ws.send(JSON.stringify(response));
+    }
+
+    // Close this temporary connection after short delay
+    setTimeout(() => {
+      try {
+        if (conn.ws.readyState === WebSocket.OPEN) {
+          conn.ws.close(1000, "Disconnect requested");
+        }
+      } catch (e) {
+        // Ignore
+      }
+      removeConnection(conn.id);
+    }, 100);
   }
 
   // ============================================================================
@@ -339,13 +409,95 @@ export function createWebSocketServer(
             state.logger?.info?.(`[AO Server] NEW WebSocket CONNECTION!`);
             state.logger?.info?.(`[AO Server]   remoteAddress: ${remoteAddress}`);
             state.logger?.info?.(`[AO Server]   timestamp: ${timestamp}`);
+            state.logger?.info?.(`[AO Server]   connections: ${state.connections.size}/${options.maxConnections}`);
             state.logger?.info?.(`[AO Server] ========================================`);
 
-            // Check max connections
+            // Check max connections - but allow disconnect messages to clean up old connections
             if (state.connections.size >= options.maxConnections) {
-              state.logger?.warn?.(`[AO Server] Max connections reached (${options.maxConnections}), rejecting: ${remoteAddress}`);
-              ws.close(1013, "Server is full");
-              return;
+              state.logger?.warn?.(`[AO Server] Max connections reached, attempting cleanup...`);
+
+              // Try to clean up zombie/stale connections first
+              const now = Date.now();
+              const zombieThreshold = 60000; // 60 seconds of inactivity
+              const deadConnections: string[] = [];
+
+              for (const [connId, conn] of state.connections) {
+                const inactivityElapsed = now - conn.lastPingAt;
+                // Check for connections that haven't responded to ping or are inactive
+                if (inactivityElapsed > zombieThreshold || conn.ws.readyState !== WebSocket.OPEN) {
+                  deadConnections.push(connId);
+                }
+              }
+
+              // Clean up dead connections
+              if (deadConnections.length > 0) {
+                state.logger?.info?.(`[AO Server] Cleaning up ${deadConnections.length} zombie connections`);
+                for (const deadConnId of deadConnections) {
+                  try {
+                    const deadConn = state.connections.get(deadConnId);
+                    if (deadConn) {
+                      deadConn.ws.terminate();
+                    }
+                  } catch (e) {
+                    // Ignore
+                  }
+                  removeConnection(deadConnId);
+                }
+                state.logger?.info?.(`[AO Server] After cleanup: ${state.connections.size}/${options.maxConnections} connections`);
+              }
+
+              // If still at max, accept connection temporarily to check for disconnect message
+              // This allows CP to clean up old connections even when server is full
+              if (state.connections.size >= options.maxConnections) {
+                state.logger?.warn?.(`[AO Server] Still at max, accepting temporarily for disconnect check: ${remoteAddress}`);
+
+                // Wait for first message with timeout
+                let handledDisconnect = false;
+                const tempMessageHandler = (data: WebSocket.RawData) => {
+                  try {
+                    const msg = JSON.parse(data.toString());
+                    if (msg.type === "disconnect") {
+                      handledDisconnect = true;
+                      // Create a temporary connection object for handleDisconnect
+                      const tempConn: ControlPlaneConnection = {
+                        id: "temp-" + randomUUID(),
+                        ws,
+                        connectedAt: Date.now(),
+                        lastPingAt: Date.now(),
+                        isAuthenticated: false,
+                        metadata: { remoteAddress },
+                      };
+                      // This will clean up old connections for the same controlPlaneId
+                      handleDisconnect(tempConn, msg);
+                    }
+                  } catch (e) {
+                    // Ignore parse errors
+                  }
+                };
+
+                ws.on("message", tempMessageHandler);
+
+                // Set timeout to close if no disconnect message received
+                setTimeout(() => {
+                  if (!handledDisconnect) {
+                    ws.off("message", tempMessageHandler);
+                    ws.close(1013, "Server is full");
+                  }
+                }, 2000);
+
+                // Send welcome to allow disconnect message
+                const welcomeMsg = {
+                  type: "welcome",
+                  timestamp: Date.now(),
+                  payload: {
+                    server: "AO Plugin V2",
+                    requiresAuth: true,
+                    message: "Please send disconnect message to clean up old connections",
+                  },
+                };
+                ws.send(JSON.stringify(welcomeMsg));
+                return;
+              }
             }
 
             const conn = createConnection(ws, remoteAddress);
